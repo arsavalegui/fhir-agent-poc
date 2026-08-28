@@ -32,7 +32,12 @@ def system_prompt(fuente="fhir"):
 def llamar_llm(system, pregunta):
     # El pool de modelos gratis de OmniRoute puede devolver 429 si está
     # saturado; reintentamos con backoff y con modelos de respaldo.
-    modelos = [MODELO, "auto/coding", "auto/best-chat", "auto/chat"]
+    # Cadena de failover que cruza VARIOS proveedores de OmniRoute, no solo
+    # el pool keyless. Los que necesiten cuenta conectada en el dashboard se
+    # saltan solos (403/418); en cuanto conectes proveedores, se aprovechan.
+    modelos = [MODELO, "auto/best-coding", "auto/coding", "auto/best-chat",
+               "ddgw/gpt-5.4-mini", "ddgw/claude-haiku-4-5", "tllm/GPT_5_4",
+               "felo/felo-chat", "oc/deepseek-v4-flash-free", "oc/big-pickle"]
     ultimo = None
     for intento in range(6):
         modelo = modelos[min(intento, len(modelos) - 1)]
@@ -49,10 +54,15 @@ def llamar_llm(system, pregunta):
             return d["choices"][0]["message"]["content"]
         except urllib.error.HTTPError as e:
             ultimo = e
-            if e.code == 429:
+            if e.code == 429:            # saturado: espera y reintenta
                 time.sleep(3 + intento * 4)
                 continue
+            if e.code in (400, 403, 418, 502, 503):  # proveedor no disponible/sin conectar
+                continue                 # salta al siguiente modelo de inmediato
             raise
+        except Exception as e:           # timeout u otro: prueba el siguiente
+            ultimo = e
+            continue
     raise ultimo
 
 
