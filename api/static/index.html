@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agente de datos FHIR</title>
+<style>
+  :root {
+    --bg:#0f1720; --panel:#18222e; --line:#2a3946; --ink:#e6edf3;
+    --muted:#8aa0b2; --acc:#3fb6a8; --acc2:#e0a13a; --mono:"SF Mono",ui-monospace,monospace;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
+  header { padding:22px 28px; border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  header h1 { font-size:20px; margin:0; }
+  header .sub { color:var(--muted); font-size:13px; }
+  .estado { margin-left:auto; font-family:var(--mono); font-size:12px; color:var(--acc); }
+  main { max-width:1000px; margin:0 auto; padding:24px 28px 80px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:20px; margin-bottom:20px; }
+  .card h2 { font-size:15px; margin:0 0 14px; color:var(--acc);
+    text-transform:uppercase; letter-spacing:.05em; }
+  .fila { display:flex; gap:10px; }
+  input[type=text] { flex:1; background:#0d141c; border:1px solid var(--line);
+    color:var(--ink); border-radius:8px; padding:12px 14px; font-size:15px; }
+  input[type=text]:focus { outline:none; border-color:var(--acc); }
+  button { background:var(--acc); color:#04231f; border:0; border-radius:8px;
+    padding:12px 20px; font-weight:600; font-size:15px; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .chip { background:#0d141c; border:1px solid var(--line); color:var(--muted);
+    border-radius:20px; padding:6px 12px; font-size:12.5px; cursor:pointer; }
+  .chip:hover { border-color:var(--acc); color:var(--ink); }
+  .resp { margin-top:16px; }
+  .answer { font-size:16px; margin-bottom:14px; }
+  pre { background:#0a1017; border:1px solid var(--line); border-radius:8px;
+    padding:14px; overflow-x:auto; font-family:var(--mono); font-size:13px;
+    color:#b9e6de; margin:0; }
+  .lbl { font-size:11px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--muted); margin:14px 0 6px; }
+  table { border-collapse:collapse; width:100%; font-size:13.5px; margin-top:6px; }
+  th,td { border:1px solid var(--line); padding:7px 10px; text-align:left; }
+  th { background:#0d141c; color:var(--acc2); font-family:var(--mono); font-size:12px; }
+  td { font-variant-numeric:tabular-nums; }
+  .err { color:#e0736a; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media(max-width:720px){ .grid2{grid-template-columns:1fr;} }
+  details summary { cursor:pointer; color:var(--muted); font-size:13px; }
+  textarea { width:100%; min-height:180px; background:#0d141c; border:1px solid var(--line);
+    color:var(--ink); border-radius:8px; padding:12px; font-family:var(--mono);
+    font-size:12.5px; resize:vertical; }
+  .muted { color:var(--muted); font-size:13px; }
+  .subir { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Agente de datos FHIR</h1>
+  <span class="sub">Pregunta en lenguaje natural &middot; te devuelve la respuesta y la consulta SQL</span>
+  <span class="estado" id="estado">cargando&hellip;</span>
+</header>
+<main>
+  <div class="card">
+    <h2>Preguntar</h2>
+    <div class="fila">
+      <input type="text" id="q" placeholder="¿Cuántos pacientes hay? ¿Diagnósticos más comunes?"
+        onkeydown="if(event.key==='Enter')preguntar()">
+      <button id="btn" onclick="preguntar()">Preguntar</button>
+    </div>
+    <div class="chips" id="ejemplos"></div>
+    <div class="resp" id="resp"></div>
+  </div>
+
+  <div class="card">
+    <h2>Subir un JSON FHIR</h2>
+    <div class="subir">
+      <input type="file" id="file" accept=".json">
+      <button onclick="subir()">Cargar a la base</button>
+      <span class="muted" id="subir-msg"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Configuración del agente</h2>
+    <p class="muted">La arquitectura es fija. Para otro cliente o fuente de datos,
+    solo cambia estos textos.</p>
+    <div class="lbl">1 &middot; Comportamiento general del agente</div>
+    <textarea id="cfg-general" readonly></textarea>
+    <div class="grid2" style="margin-top:14px">
+      <div>
+        <div class="lbl">2a &middot; Descripción de la fuente</div>
+        <textarea id="cfg-desc" readonly></textarea>
+      </div>
+      <div>
+        <div class="lbl">2b &middot; Reglas del agente para la fuente</div>
+        <textarea id="cfg-reglas" readonly></textarea>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const EJEMPLOS = [
+  "¿Cuántos pacientes hay?",
+  "¿Cuáles son los diagnósticos más comunes?",
+  "¿Cuántos ingresos de emergencia hubo?",
+  "¿Cuántos pacientes hay por género?",
+  "¿Cuáles son las vacunas más aplicadas?",
+  "¿Qué medicamentos se recetaron más?",
+];
+
+async function cargarEstado() {
+  const r = await fetch("/api/estado").then(r=>r.json());
+  document.getElementById("estado").textContent =
+    r.total_recursos.toLocaleString() + " recursos · " +
+    Object.keys(r.por_tipo).length + " tipos";
+}
+async function cargarConfig() {
+  const c = await fetch("/api/config").then(r=>r.json());
+  document.getElementById("cfg-general").value = c.general;
+  document.getElementById("cfg-desc").value = c.descripcion;
+  document.getElementById("cfg-reglas").value = c.reglas;
+}
+function pintarEjemplos() {
+  const cont = document.getElementById("ejemplos");
+  EJEMPLOS.forEach(e => {
+    const s = document.createElement("span");
+    s.className = "chip"; s.textContent = e;
+    s.onclick = () => { document.getElementById("q").value = e; preguntar(); };
+    cont.appendChild(s);
+  });
+}
+function tabla(cols, filas) {
+  if (!filas.length) return "<p class='muted'>La consulta no devolvió filas.</p>";
+  let h = "<table><tr>" + cols.map(c=>`<th>${c}</th>`).join("") + "</tr>";
+  for (const f of filas) h += "<tr>" + cols.map(c=>`<td>${f[c]??""}</td>`).join("") + "</tr>";
+  return h + "</table>";
+}
+function resumen(cols, filas) {
+  if (filas.length === 1 && cols.length === 1) {
+    const v = filas[0][cols[0]];
+    return `<div class="answer"><b>${v}</b></div>`;
+  }
+  return `<div class="answer muted">${filas.length} resultado(s):</div>`;
+}
+async function preguntar() {
+  const q = document.getElementById("q").value.trim();
+  if (!q) return;
+  const btn = document.getElementById("btn");
+  const resp = document.getElementById("resp");
+  btn.disabled = true; resp.innerHTML = "<p class='muted'>Pensando y consultando la base…</p>";
+  try {
+    const r = await fetch("/api/preguntar", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({texto:q})
+    }).then(r=>r.json());
+    if (!r.ok) {
+      resp.innerHTML = `<p class="err">${r.error||"Error"}</p>` +
+        (r.sql?`<div class="lbl">SQL generado</div><pre>${r.sql}</pre>`:"");
+    } else {
+      resp.innerHTML = resumen(r.columnas, r.filas) +
+        (r.explicacion?`<p class="muted">${r.explicacion}</p>`:"") +
+        `<div class="lbl">Consulta SQL (verifícala en Postgres)</div><pre>${r.sql}</pre>` +
+        `<div class="lbl">Resultado</div>` + tabla(r.columnas, r.filas);
+    }
+  } catch(e) {
+    resp.innerHTML = `<p class="err">Fallo de red: ${e}</p>`;
+  }
+  btn.disabled = false;
+}
+async function subir() {
+  const f = document.getElementById("file").files[0];
+  const msg = document.getElementById("subir-msg");
+  if (!f) { msg.textContent = "Elige un archivo primero."; return; }
+  msg.textContent = "Cargando…";
+  const fd = new FormData(); fd.append("archivo", f);
+  const r = await fetch("/api/subir", {method:"POST", body:fd}).then(r=>r.json());
+  msg.textContent = r.ok ? `${r.recursos_cargados} recursos cargados de ${r.archivo}` : (r.error||"Error");
+  cargarEstado();
+}
+pintarEjemplos(); cargarEstado(); cargarConfig();
+</script>
+</body>
+</html>

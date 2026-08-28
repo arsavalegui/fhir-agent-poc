@@ -1,0 +1,51 @@
+# POC: agente de datos FHIR sobre Postgres jsonb (equivalente open-source al
+# tipo dinámico de KQL). Todo open source, todo local.
+name: fhir-agent-poc
+
+services:
+  postgres:
+    image: postgres:16.6
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: America/Mexico_City
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [red]
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      CONFIG_DIR: /config
+      # OmniRoute corre en el HOST (gateway de modelos gratis, puerto 20128).
+      OMNIROUTE_URL: http://host.docker.internal:20128/v1
+      OMNIROUTE_MODELO: ${OMNIROUTE_MODELO:-auto/best-coding}
+      TZ: America/Mexico_City
+    volumes:
+      - ./config:/config:ro
+      - ./datos_fhir:/datos_fhir:ro
+    ports:
+      - "8010:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [red]
+
+volumes:
+  pg_data:
+
+networks:
+  red:
+    driver: bridge
