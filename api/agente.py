@@ -81,18 +81,38 @@ def extraer_sql(texto):
     return (m.group(1).strip().rstrip(";"), "") if m else (None, "")
 
 
-def validar(sql):
+def tablas_en_sql(sql):
+    """Nombres que aparecen tras FROM/JOIN, para validar el acceso."""
+    return {m.lower() for m in re.findall(
+        r"\b(?:from|join)\s+\"?([a-zA-Z_][a-zA-Z0-9_]*)\"?", sql, re.IGNORECASE)}
+
+
+def validar(sql, permitidas=None):
     if not sql or not sql.lower().lstrip().startswith("select"):
         return "La consulta generada no es un SELECT."
     if PROHIBIDO.search(sql):
         return "La consulta contiene operaciones no permitidas."
+    if permitidas is not None:
+        ok = {t.lower() for t in permitidas}
+        usadas = tablas_en_sql(sql)
+        prohibidas = usadas - ok
+        if prohibidas:
+            return (f"La consulta intenta acceder a tablas no autorizadas: "
+                    f"{', '.join(sorted(prohibidas))}. Autorizadas: {', '.join(sorted(ok)) or 'ninguna'}.")
     return None
 
 
-def preguntar(conn, pregunta, fuente="fhir"):
-    crudo = llamar_llm(system_prompt(fuente), pregunta)
+def preguntar(conn, pregunta, fuente="fhir", tablas_permitidas=None):
+    extra = ""
+    if tablas_permitidas is not None:
+        lista = ", ".join(tablas_permitidas) if tablas_permitidas else "(ninguna)"
+        extra = ("\n\n## ACCESO A DATOS (obligatorio)\n"
+                 f"SOLO puedes consultar estas tablas/vistas: {lista}. "
+                 "No uses ninguna otra. Si la pregunta requiere una tabla no "
+                 "autorizada, explícalo en la explicación y no la consultes.")
+    crudo = llamar_llm(system_prompt(fuente) + extra, pregunta)
     sql, explicacion = extraer_sql(crudo)
-    error = validar(sql)
+    error = validar(sql, tablas_permitidas)
     if error:
         return {"ok": False, "error": error, "sql": sql, "crudo": crudo}
     try:

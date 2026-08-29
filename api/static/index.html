@@ -10,119 +10,177 @@
     --muted:#8aa0b2; --acc:#3fb6a8; --acc2:#e0a13a; --mono:"SF Mono",ui-monospace,monospace;
   }
   * { box-sizing:border-box; }
+  html,body { height:100%; }
   body { margin:0; background:var(--bg); color:var(--ink);
-    font-family:system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
-  header { padding:22px 28px; border-bottom:1px solid var(--line);
-    display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
-  header h1 { font-size:20px; margin:0; }
-  header .sub { color:var(--muted); font-size:13px; }
-  .estado { margin-left:auto; font-family:var(--mono); font-size:12px; color:var(--acc); }
-  main { max-width:1000px; margin:0 auto; padding:24px 28px 80px; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
-    padding:20px; margin-bottom:20px; }
-  .card h2 { font-size:15px; margin:0 0 14px; color:var(--acc);
-    text-transform:uppercase; letter-spacing:.05em; }
-  .fila { display:flex; gap:10px; }
-  input[type=text] { flex:1; background:#0d141c; border:1px solid var(--line);
-    color:var(--ink); border-radius:8px; padding:12px 14px; font-size:15px; }
-  input[type=text]:focus { outline:none; border-color:var(--acc); }
-  button { background:var(--acc); color:#04231f; border:0; border-radius:8px;
-    padding:12px 20px; font-weight:600; font-size:15px; cursor:pointer; }
-  button:disabled { opacity:.5; cursor:default; }
-  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5;
+    display:flex; flex-direction:column; }
+  header { padding:14px 22px; border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0; }
+  header .sub { color:var(--muted); font-size:12.5px; }
+  header .estado { margin-left:auto; font-family:var(--mono); font-size:12px; color:var(--acc); }
+  .layout { flex:1; display:flex; min-height:0; }
+
+  /* sidebar */
+  aside { width:290px; border-right:1px solid var(--line); background:var(--panel);
+    padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:18px; }
+  aside h2 { font-size:12px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--acc); margin:0 0 8px; }
+  .tabla-item { display:flex; align-items:center; gap:9px; padding:7px 9px;
+    border:1px solid var(--line); border-radius:7px; margin-bottom:6px; cursor:pointer;
+    background:#0d141c; }
+  .tabla-item:hover { border-color:var(--acc); }
+  .tabla-item input { accent-color:var(--acc); width:15px; height:15px; }
+  .tabla-item .n { font-size:13.5px; }
+  .tabla-item .meta { margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--muted); }
+  .tabla-item.off { opacity:.5; }
+  .mini { font-size:11.5px; color:var(--muted); }
+  .toggle-all { display:flex; gap:8px; margin-bottom:8px; }
+  .toggle-all button { background:#0d141c; border:1px solid var(--line); color:var(--muted);
+    border-radius:6px; padding:4px 9px; font-size:11.5px; cursor:pointer; }
+
+  /* chat */
+  main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .hilo { flex:1; overflow-y:auto; padding:20px 24px; display:flex; flex-direction:column; gap:14px; }
+  .vacio { color:var(--muted); text-align:center; margin:auto; max-width:420px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:14px; }
   .chip { background:#0d141c; border:1px solid var(--line); color:var(--muted);
     border-radius:20px; padding:6px 12px; font-size:12.5px; cursor:pointer; }
   .chip:hover { border-color:var(--acc); color:var(--ink); }
-  .resp { margin-top:16px; }
-  .answer { font-size:16px; margin-bottom:14px; }
+  .msg { max-width:760px; }
+  .msg.user { align-self:flex-end; background:var(--acc); color:#04231f;
+    padding:9px 14px; border-radius:12px 12px 2px 12px; font-size:14.5px; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line);
+    padding:14px 16px; border-radius:12px 12px 12px 2px; width:100%; }
+  .answer { font-size:16px; margin-bottom:10px; }
+  .answer b { color:var(--acc); }
   pre { background:#0a1017; border:1px solid var(--line); border-radius:8px;
-    padding:14px; overflow-x:auto; font-family:var(--mono); font-size:13px;
+    padding:12px; overflow-x:auto; font-family:var(--mono); font-size:12.5px;
     color:#b9e6de; margin:0; }
-  .lbl { font-size:11px; text-transform:uppercase; letter-spacing:.08em;
-    color:var(--muted); margin:14px 0 6px; }
-  table { border-collapse:collapse; width:100%; font-size:13.5px; margin-top:6px; }
-  th,td { border:1px solid var(--line); padding:7px 10px; text-align:left; }
-  th { background:#0d141c; color:var(--acc2); font-family:var(--mono); font-size:12px; }
+  .lbl { font-size:10.5px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--muted); margin:12px 0 5px; }
+  table { border-collapse:collapse; width:100%; font-size:13px; margin-top:4px; }
+  th,td { border:1px solid var(--line); padding:6px 9px; text-align:left; }
+  th { background:#0d141c; color:var(--acc2); font-family:var(--mono); font-size:11.5px; }
   td { font-variant-numeric:tabular-nums; }
   .err { color:#e0736a; }
-  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  @media(max-width:720px){ .grid2{grid-template-columns:1fr;} }
-  details summary { cursor:pointer; color:var(--muted); font-size:13px; }
-  textarea { width:100%; min-height:180px; background:#0d141c; border:1px solid var(--line);
-    color:var(--ink); border-radius:8px; padding:12px; font-family:var(--mono);
-    font-size:12.5px; resize:vertical; }
-  .muted { color:var(--muted); font-size:13px; }
-  .subir { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+
+  /* entrada */
+  .barra { border-top:1px solid var(--line); padding:14px 24px; display:flex; gap:10px;
+    align-items:center; }
+  .barra input { flex:1; background:#0d141c; border:1px solid var(--line); color:var(--ink);
+    border-radius:9px; padding:12px 14px; font-size:15px; }
+  .barra input:focus { outline:none; border-color:var(--acc); }
+  .barra button { background:var(--acc); color:#04231f; border:0; border-radius:9px;
+    padding:12px 20px; font-weight:600; font-size:15px; cursor:pointer; }
+  .barra button:disabled { opacity:.5; }
+  .barra .limpiar { background:transparent; color:var(--muted); border:1px solid var(--line); }
+
+  details summary { cursor:pointer; color:var(--muted); font-size:12.5px; }
+  details[open] summary { margin-bottom:8px; }
+  textarea { width:100%; min-height:120px; background:#0d141c; border:1px solid var(--line);
+    color:var(--ink); border-radius:7px; padding:10px; font-family:var(--mono);
+    font-size:11.5px; resize:vertical; }
+  .aviso { font-size:11px; color:var(--muted); border-top:1px solid var(--line);
+    padding-top:10px; margin-top:auto; }
+  @media(max-width:820px){ aside{display:none;} }
 </style>
 </head>
 <body>
 <header>
   <h1>Agente de datos FHIR</h1>
-  <span class="sub">Pregunta en lenguaje natural &middot; te devuelve la respuesta y la consulta SQL</span>
-  <span class="estado" id="estado">cargando&hellip;</span>
+  <span class="sub">Un solo chat &middot; sin historial &middot; se borra al cerrar</span>
+  <span class="estado" id="estado">&hellip;</span>
 </header>
-<main>
-  <div class="card">
-    <h2>Preguntar</h2>
-    <div class="fila">
+
+<div class="layout">
+  <aside>
+    <div>
+      <h2>Base conectada</h2>
+      <p class="mini" id="db-info">cargando tablas&hellip;</p>
+      <div class="toggle-all">
+        <button onclick="marcarTodas(true)">Todas</button>
+        <button onclick="marcarTodas(false)">Ninguna</button>
+      </div>
+      <div id="tablas"></div>
+      <p class="mini">Marca a qué tablas puede acceder el agente. Si intenta usar
+      una no marcada, la consulta se rechaza.</p>
+    </div>
+
+    <details>
+      <summary>Instrucciones del agente</summary>
+      <div class="lbl">1 · Comportamiento general</div>
+      <textarea id="cfg-general" readonly></textarea>
+      <div class="lbl">2a · Descripción de la fuente</div>
+      <textarea id="cfg-desc" readonly></textarea>
+      <div class="lbl">2b · Reglas para la fuente</div>
+      <textarea id="cfg-reglas" readonly></textarea>
+    </details>
+
+    <div class="aviso">
+      Este chat no guarda nada. Al recargar o cerrar la pestaña, las consultas
+      desaparecen.
+    </div>
+  </aside>
+
+  <main>
+    <div class="hilo" id="hilo">
+      <div class="vacio" id="vacio">
+        <p>Pregunta en lenguaje natural sobre los datos FHIR. Te respondo y te doy
+        la consulta SQL para que la verifiques.</p>
+        <div class="chips" id="ejemplos"></div>
+      </div>
+    </div>
+    <div class="barra">
       <input type="text" id="q" placeholder="¿Cuántos pacientes hay? ¿Diagnósticos más comunes?"
-        onkeydown="if(event.key==='Enter')preguntar()">
+        onkeydown="if(event.key==='Enter')preguntar()" autocomplete="off">
+      <button class="limpiar" onclick="limpiar()" title="Borrar el chat">Limpiar</button>
       <button id="btn" onclick="preguntar()">Preguntar</button>
     </div>
-    <div class="chips" id="ejemplos"></div>
-    <div class="resp" id="resp"></div>
-  </div>
-
-  <div class="card">
-    <h2>Subir un JSON FHIR</h2>
-    <div class="subir">
-      <input type="file" id="file" accept=".json">
-      <button onclick="subir()">Cargar a la base</button>
-      <span class="muted" id="subir-msg"></span>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Configuración del agente</h2>
-    <p class="muted">La arquitectura es fija. Para otro cliente o fuente de datos,
-    solo cambia estos textos.</p>
-    <div class="lbl">1 &middot; Comportamiento general del agente</div>
-    <textarea id="cfg-general" readonly></textarea>
-    <div class="grid2" style="margin-top:14px">
-      <div>
-        <div class="lbl">2a &middot; Descripción de la fuente</div>
-        <textarea id="cfg-desc" readonly></textarea>
-      </div>
-      <div>
-        <div class="lbl">2b &middot; Reglas del agente para la fuente</div>
-        <textarea id="cfg-reglas" readonly></textarea>
-      </div>
-    </div>
-  </div>
-</main>
+  </main>
+</div>
 
 <script>
 const EJEMPLOS = [
   "¿Cuántos pacientes hay?",
-  "¿Cuáles son los diagnósticos más comunes?",
+  "¿Diagnósticos más comunes?",
   "¿Cuántos ingresos de emergencia hubo?",
-  "¿Cuántos pacientes hay por género?",
-  "¿Cuáles son las vacunas más aplicadas?",
-  "¿Qué medicamentos se recetaron más?",
+  "¿Pacientes por género?",
+  "¿Vacunas más aplicadas?",
 ];
+let TABLAS = [];  // {nombre, tipo, filas, permitida}
 
 async function cargarEstado() {
   const r = await fetch("/api/estado").then(r=>r.json());
   document.getElementById("estado").textContent =
-    r.total_recursos.toLocaleString() + " recursos · " +
-    Object.keys(r.por_tipo).length + " tipos";
+    r.total_recursos.toLocaleString() + " recursos";
 }
-async function cargarConfig() {
-  const c = await fetch("/api/config").then(r=>r.json());
-  document.getElementById("cfg-general").value = c.general;
-  document.getElementById("cfg-desc").value = c.descripcion;
-  document.getElementById("cfg-reglas").value = c.reglas;
+async function cargarTablas() {
+  const r = await fetch("/api/tablas").then(r=>r.json());
+  // por defecto solo la vista anonimizada queda permitida (protege PII)
+  TABLAS = r.tablas.map(t => ({...t, permitida: t.nombre === "resources_anon"}));
+  document.getElementById("db-info").textContent = "fhir_db · " + TABLAS.length + " objetos";
+  pintarTablas();
 }
+function pintarTablas() {
+  const c = document.getElementById("tablas");
+  c.innerHTML = "";
+  TABLAS.forEach((t, i) => {
+    const div = document.createElement("label");
+    div.className = "tabla-item" + (t.permitida ? "" : " off");
+    div.innerHTML = `<input type="checkbox" ${t.permitida?"checked":""}>
+      <span class="n">${t.nombre}</span>
+      <span class="meta">${t.tipo}${t.filas!=null?" · "+t.filas:""}</span>`;
+    div.querySelector("input").onchange = e => {
+      TABLAS[i].permitida = e.target.checked;
+      div.classList.toggle("off", !e.target.checked);
+    };
+    c.appendChild(div);
+  });
+}
+function marcarTodas(v) { TABLAS.forEach(t=>t.permitida=v); pintarTablas(); }
+function permitidas() { return TABLAS.filter(t=>t.permitida).map(t=>t.nombre); }
+
 function pintarEjemplos() {
   const cont = document.getElementById("ejemplos");
   EJEMPLOS.forEach(e => {
@@ -133,54 +191,67 @@ function pintarEjemplos() {
   });
 }
 function tabla(cols, filas) {
-  if (!filas.length) return "<p class='muted'>La consulta no devolvió filas.</p>";
+  if (!filas.length) return "<p class='mini'>Sin filas.</p>";
   let h = "<table><tr>" + cols.map(c=>`<th>${c}</th>`).join("") + "</tr>";
   for (const f of filas) h += "<tr>" + cols.map(c=>`<td>${f[c]??""}</td>`).join("") + "</tr>";
   return h + "</table>";
 }
 function resumen(cols, filas) {
-  if (filas.length === 1 && cols.length === 1) {
-    const v = filas[0][cols[0]];
-    return `<div class="answer"><b>${v}</b></div>`;
-  }
-  return `<div class="answer muted">${filas.length} resultado(s):</div>`;
+  if (filas.length === 1 && cols.length === 1)
+    return `<div class="answer"><b>${filas[0][cols[0]]}</b></div>`;
+  return `<div class="answer">${filas.length} resultado(s)</div>`;
 }
+function addUser(t) {
+  document.getElementById("vacio")?.remove();
+  const d = document.createElement("div"); d.className="msg user"; d.textContent=t;
+  document.getElementById("hilo").appendChild(d); scroll();
+}
+function addBot(html) {
+  const d = document.createElement("div"); d.className="msg bot"; d.innerHTML=html;
+  document.getElementById("hilo").appendChild(d); scroll(); return d;
+}
+function scroll(){ const h=document.getElementById("hilo"); h.scrollTop=h.scrollHeight; }
+
 async function preguntar() {
   const q = document.getElementById("q").value.trim();
   if (!q) return;
-  const btn = document.getElementById("btn");
-  const resp = document.getElementById("resp");
-  btn.disabled = true; resp.innerHTML = "<p class='muted'>Pensando y consultando la base…</p>";
+  document.getElementById("q").value = "";
+  addUser(q);
+  const btn = document.getElementById("btn"); btn.disabled = true;
+  const pensando = addBot("<span class='mini'>Pensando y consultando…</span>");
   try {
     const r = await fetch("/api/preguntar", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({texto:q})
+      body: JSON.stringify({texto:q, tablas_permitidas: permitidas()})
     }).then(r=>r.json());
     if (!r.ok) {
-      resp.innerHTML = `<p class="err">${r.error||"Error"}</p>` +
+      pensando.innerHTML = `<p class="err">${r.error||"Error"}</p>` +
         (r.sql?`<div class="lbl">SQL generado</div><pre>${r.sql}</pre>`:"");
     } else {
-      resp.innerHTML = resumen(r.columnas, r.filas) +
-        (r.explicacion?`<p class="muted">${r.explicacion}</p>`:"") +
+      pensando.innerHTML = resumen(r.columnas, r.filas) +
+        (r.explicacion?`<p class="mini">${r.explicacion}</p>`:"") +
         `<div class="lbl">Consulta SQL (verifícala en Postgres)</div><pre>${r.sql}</pre>` +
         `<div class="lbl">Resultado</div>` + tabla(r.columnas, r.filas);
     }
-  } catch(e) {
-    resp.innerHTML = `<p class="err">Fallo de red: ${e}</p>`;
-  }
-  btn.disabled = false;
+  } catch(e) { pensando.innerHTML = `<p class="err">Fallo de red: ${e}</p>`; }
+  btn.disabled = false; scroll();
 }
-async function subir() {
-  const f = document.getElementById("file").files[0];
-  const msg = document.getElementById("subir-msg");
-  if (!f) { msg.textContent = "Elige un archivo primero."; return; }
-  msg.textContent = "Cargando…";
-  const fd = new FormData(); fd.append("archivo", f);
-  const r = await fetch("/api/subir", {method:"POST", body:fd}).then(r=>r.json());
-  msg.textContent = r.ok ? `${r.recursos_cargados} recursos cargados de ${r.archivo}` : (r.error||"Error");
-  cargarEstado();
+function limpiar() {
+  document.getElementById("hilo").innerHTML =
+    `<div class="vacio" id="vacio"><p>Chat limpio. Pregunta lo que quieras.</p>
+     <div class="chips" id="ejemplos"></div></div>`;
+  pintarEjemplos();
 }
-pintarEjemplos(); cargarEstado(); cargarConfig();
+async function cargarConfig() {
+  const c = await fetch("/api/config").then(r=>r.json());
+  document.getElementById("cfg-general").value = c.general;
+  document.getElementById("cfg-desc").value = c.descripcion;
+  document.getElementById("cfg-reglas").value = c.reglas;
+}
+// nada persiste: al cerrar/recargar el DOM se va y no usamos storage
+window.addEventListener("beforeunload", () => { document.getElementById("hilo").innerHTML=""; });
+
+pintarEjemplos(); cargarEstado(); cargarTablas(); cargarConfig();
 </script>
 </body>
 </html>

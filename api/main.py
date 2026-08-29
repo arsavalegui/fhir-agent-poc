@@ -23,6 +23,7 @@ def conexion():
 class Pregunta(BaseModel):
     texto: str
     fuente: str = "fhir"
+    tablas_permitidas: list[str] | None = None
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -40,6 +41,30 @@ def estado():
     total = cur.fetchone()[0]
     cur.close(); conn.close()
     return {"total_recursos": total, "por_tipo": tipos}
+
+
+@app.get("/api/tablas")
+def tablas():
+    """Lista tablas y vistas del esquema public, con conteo de filas, para que
+    el usuario elija a cuáles puede acceder el agente."""
+    conn = conexion()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT table_name, table_type FROM information_schema.tables
+        WHERE table_schema = 'public' ORDER BY table_type, table_name""")
+    filas = cur.fetchall()
+    out = []
+    for nombre, tipo in filas:
+        try:
+            cur.execute(f'SELECT count(*) FROM "{nombre}"')
+            n = cur.fetchone()[0]
+        except Exception:
+            conn.rollback(); n = None
+        out.append({"nombre": nombre,
+                    "tipo": "vista" if tipo == "VIEW" else "tabla",
+                    "filas": n})
+    cur.close(); conn.close()
+    return {"tablas": out}
 
 
 @app.get("/api/config")
@@ -75,7 +100,7 @@ async def subir(archivo: UploadFile = File(...)):
 def preguntar(p: Pregunta):
     conn = conexion()
     try:
-        return agente.preguntar(conn, p.texto, p.fuente)
+        return agente.preguntar(conn, p.texto, p.fuente, p.tablas_permitidas)
     finally:
         conn.close()
 
