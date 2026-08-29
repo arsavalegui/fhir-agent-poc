@@ -252,6 +252,8 @@ async function cargarConfig() {
 window.addEventListener("beforeunload", () => { document.getElementById("hilo").innerHTML=""; });
 
 pintarEjemplos(); cargarEstado(); cargarTablas(); cargarConfig();
+// refresca el conteo cada 8s para reflejar lo que el buzón vaya ingiriendo
+setInterval(cargarEstado, 8000);
 </script>
 </body>
 </html>

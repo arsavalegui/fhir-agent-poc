@@ -43,6 +43,22 @@ services:
       - "host.docker.internal:host-gateway"
     networks: [red]
 
+  # Vigila la carpeta datos_fhir/entrada y auto-ingesta lo que caiga ahí.
+  watcher:
+    build: ./api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      BUZON_DIR: /datos_fhir
+      TZ: America/Mexico_City
+    volumes:
+      - ./datos_fhir:/datos_fhir       # rw: mueve archivos a procesados/errores
+    command: ["python", "watcher.py"]
+    networks: [red]
+
 volumes:
   pg_data:
 

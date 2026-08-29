@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 datos_fhir/*.zip
+datos_fhir/entrada/*.json
+datos_fhir/procesados/*.json
+datos_fhir/errores/*.json
