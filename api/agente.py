@@ -7,8 +7,8 @@ import re
 import time
 import urllib.request
 
-OMNIROUTE_URL = os.environ.get("OMNIROUTE_URL", "http://host.docker.internal:20128/v1")
-MODELO = os.environ.get("OMNIROUTE_MODELO", "auto/best-coding")
+LLM_URL = os.environ.get("LLM_URL", "http://host.docker.internal:11434/v1")
+MODELO = os.environ.get("LLM_MODELO", "qwen2.5-coder:3b")
 CONFIG_DIR = os.environ.get("CONFIG_DIR", "/config")
 
 # Solo se permite una única sentencia SELECT.
@@ -35,9 +35,7 @@ def llamar_llm(system, pregunta):
     # Cadena de failover que cruza VARIOS proveedores de OmniRoute, no solo
     # el pool keyless. Los que necesiten cuenta conectada en el dashboard se
     # saltan solos (403/418); en cuanto conectes proveedores, se aprovechan.
-    modelos = [MODELO, "auto/best-coding", "auto/coding", "auto/best-chat",
-               "ddgw/gpt-5.4-mini", "ddgw/claude-haiku-4-5", "tllm/GPT_5_4",
-               "felo/felo-chat", "oc/deepseek-v4-flash-free", "oc/big-pickle"]
+    modelos = [MODELO]  # modelo local (Ollama); es siempre nuestro, no se agota
     ultimo = None
     for intento in range(6):
         modelo = modelos[min(intento, len(modelos) - 1)]
@@ -46,7 +44,7 @@ def llamar_llm(system, pregunta):
             "messages": [{"role": "system", "content": system},
                          {"role": "user", "content": pregunta}],
         }).encode()
-        req = urllib.request.Request(OMNIROUTE_URL + "/chat/completions", data=body,
+        req = urllib.request.Request(LLM_URL + "/chat/completions", data=body,
             headers={"Content-Type": "application/json", "Authorization": "Bearer local"})
         try:
             with urllib.request.urlopen(req, timeout=90) as r:
@@ -57,7 +55,7 @@ def llamar_llm(system, pregunta):
             if e.code == 429:            # saturado: espera y reintenta
                 time.sleep(3 + intento * 4)
                 continue
-            if e.code in (400, 403, 418, 502, 503):  # proveedor no disponible/sin conectar
+            if e.code in (400, 403, 404, 418, 502, 503):  # proveedor no disponible/sin conectar
                 continue                 # salta al siguiente modelo de inmediato
             raise
         except Exception as e:           # timeout u otro: prueba el siguiente

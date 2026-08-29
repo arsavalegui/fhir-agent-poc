@@ -30,9 +30,9 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       CONFIG_DIR: /config
-      # OmniRoute corre en el HOST (gateway de modelos gratis, puerto 20128).
-      OMNIROUTE_URL: http://host.docker.internal:20128/v1
-      OMNIROUTE_MODELO: ${OMNIROUTE_MODELO:-auto/best-coding}
+      # LLM local: Ollama corre en el HOST (servicio de usuario, puerto 11434).
+      LLM_URL: http://host.docker.internal:11434/v1
+      LLM_MODELO: ${LLM_MODELO:-qwen2.5-coder:3b}
       TZ: America/Mexico_City
     volumes:
       - ./config:/config:ro

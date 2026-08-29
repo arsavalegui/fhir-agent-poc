@@ -37,8 +37,9 @@ Navegador ─┐
 - **Postgres 16** con `jsonb` + índice GIN. Tabla `resources` (crudo) y vista
   `resources_anon` que enmascara identificadores del recurso `Patient`.
 - **API FastAPI** con UI: preguntar, subir JSON, y ver la configuración.
-- **LLM vía OmniRoute** (gateway de modelos gratis en el host, puerto 20128).
-  Solo genera la query; nunca toca los datos directamente.
+- **LLM 100% local** con [Ollama](https://ollama.com) + modelo `qwen2.5-coder:3b`
+  (corre en tu CPU, gratis, sin registro, sin límites). Solo genera la query;
+  nunca toca los datos. Se puede apuntar a otro backend con `LLM_URL`/`LLM_MODELO`.
 - **Seguridad**: el agente solo puede generar `SELECT` (validado); timeout de 8 s;
   la transacción siempre se revierte.
 
@@ -62,8 +63,11 @@ docker exec fhir-agent-poc-api-1 python ingesta.py
 # abrir http://localhost:8010
 ```
 
-Requiere que **OmniRoute** esté corriendo en el host (`systemctl --user status
-omniroute`) para el paso del LLM.
+Requiere **Ollama** corriendo en el host con el modelo descargado:
+```bash
+ollama serve            # o el servicio systemd --user
+ollama pull qwen2.5-coder:3b
+```
 
 ## Datos de prueba
 
@@ -100,8 +104,7 @@ fhir-agent-poc/
 
 ## Nota sobre el LLM
 
-El paso text-to-SQL usa el pool de modelos gratis de OmniRoute, que puede
-devolver `429` si está saturado (el agente reintenta con backoff y modelos de
-respaldo). Para uso intensivo o producción, conviene un modelo de paga barato
-(ej. Gemini Flash-Lite) — la arquitectura no cambia, solo la variable
-`OMNIROUTE_MODELO` / el endpoint.
+El paso text-to-SQL corre **local** con Ollama (`qwen2.5-coder:3b`), gratis y sin
+límites. Es más lento (~10-15 s por pregunta en CPU) pero es 100% tuyo. Para más
+velocidad/calidad, apunta `LLM_URL`/`LLM_MODELO` a un modelo más grande o de paga
+sin cambiar el resto de la arquitectura.
