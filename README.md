@@ -28,7 +28,7 @@ cliente solo cambia la configuración del agente**.
 Navegador ─┐
            │  subir JSON / preguntar
            ▼
-      API (FastAPI)  ──►  Agente text-to-SQL  ──►  OmniRoute (LLM gratis, host)
+      API (FastAPI)  ──►  Agente text-to-SQL  ──►  Ollama local (qwen2.5-coder:3b)
            │                                            (genera el SELECT)
            ▼
       PostgreSQL  ◄── vista resources_anon (capa PII) ── tabla resources (jsonb crudo)
