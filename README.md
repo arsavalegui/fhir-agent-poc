@@ -33,15 +33,18 @@ cliente solo cambia la configuración del agente**.
               └── tabla resources (jsonb crudo)   └── respuesta + la query SQL
 ```
 
-- **Postgres 16** con `jsonb` + índice GIN. Tabla `resources` (crudo) y vista
-  `resources_anon` que enmascara identificadores del recurso `Patient`.
+- **Postgres 16** con `jsonb` + índice GIN. **Una tabla por tipo de recurso FHIR**
+  (`patient`, `encounter`, `condition`, `observation`...), cada una con `id`,
+  `recurso` (jsonb crudo), `paciente_id`. Las crea el pipeline solas cuando llega
+  un recurso de ese tipo.
 - **Buzón de auto-ingesta** (patrón landing folder): dejas un `.json` en
-  `datos_fhir/entrada/` y el servicio `watcher` (watchdog, contenedor aparte) lo
-  carga solo a Postgres y lo mueve a `procesados/` (o `errores/`). La carga de
-  datos queda SEPARADA del agente.
+  `datos_fhir/entrada/` y el servicio `watcher` lo carga solo y lo mueve a
+  `procesados/`. Detecta el tipo por el campo `resourceType` DENTRO del JSON (no
+  por el nombre del archivo), **crea la tabla si no existe** y hace append si ya
+  existe. Maneja Bundles (muchos recursos) y recursos sueltos.
 - **API FastAPI** con UI de chat: sidebar con la vista de la base y **selector de
-  acceso** (eliges a qué tablas puede acceder el agente; por defecto solo
-  `resources_anon`), instrucciones del agente, y un solo chat sin historial que se
+  acceso** a tablas (por ahora todas activas por defecto; las tablas nuevas se
+  auto-activan), instrucciones del agente, y un solo chat sin historial que se
   borra al cerrar.
 - **LLM 100% local** con [Ollama](https://ollama.com) + modelo `qwen2.5-coder:3b`
   (corre en tu CPU, gratis, sin registro, sin límites). Solo genera la query;
@@ -51,9 +54,9 @@ cliente solo cambia la configuración del agente**.
 
 ## Capa PII (privacidad)
 
-- La vista `resources_anon` borra `name`, `telecom`, `address`, `identifier`,
-  `contact`, etc. del recurso `Patient`, y reduce la fecha de nacimiento a solo el
-  año. El agente consulta SIEMPRE esta vista.
+- El recurso `Patient` se **anonimiza al entrar** (la ingesta quita `name`,
+  `telecom`, `address`, `identifier`, `contact`, y deja solo el año de nacimiento).
+  La tabla `patient` nunca guarda identificadores directos.
 - Los demás recursos referencian al paciente por uuid (seudónimo), no por nombre.
 - **Producción**: para detectar PII en texto libre (notas clínicas), el siguiente
   paso es integrar [Microsoft Presidio](https://github.com/microsoft/presidio)
@@ -103,11 +106,11 @@ fhir-agent-poc/
 │   └── fuentes/fhir/
 │       ├── descripcion.md           # 2a · descripción de la fuente
 │       └── reglas.md                # 2b · reglas del agente
-├── sql/schema.sql                   # tabla jsonb + vista PII
+├── sql/schema.sql                   # documenta el modelo (tablas dinámicas)
 ├── api/
 │   ├── main.py                      # FastAPI (chat, subir, tablas)
 │   ├── agente.py                    # text-to-SQL + control de acceso
-│   ├── ingesta.py                   # bundle FHIR → filas
+│   ├── ingesta.py                   # FHIR → tabla por tipo (auto-crea)
 │   ├── watcher.py                   # auto-ingesta del buzón
 │   └── static/index.html            # UI de chat + sidebar
 └── datos_fhir/
