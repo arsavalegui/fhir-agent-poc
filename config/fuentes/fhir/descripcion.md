@@ -1,42 +1,47 @@
 # Descripción de la fuente de datos: FHIR R4
 
-Los datos son registros clínicos en formato **HL7 FHIR R4** (estándar de salud
-de EE.UU.), generados sintéticamente con Synthea (pacientes ficticios).
+Los datos son registros clínicos en formato **HL7 FHIR R4** (estándar de salud),
+generados sintéticamente con Synthea (pacientes ficticios).
 
-## Estructura en la base de datos
+## Estructura en la base de datos: UNA TABLA POR TIPO DE RECURSO
 
-Todo vive en la vista `resources_anon`, una fila por recurso FHIR:
+Cada tipo de recurso FHIR vive en su propia tabla, nombrada con el tipo en
+minúsculas. Todas tienen la misma forma:
 
 - `id` (text): identificador único del recurso.
-- `tipo` (text): tipo de recurso FHIR (`resourceType`).
-- `paciente_id` (text): uuid del paciente al que pertenece el recurso.
 - `recurso` (jsonb): el recurso FHIR crudo completo.
+- `paciente_id` (text): uuid del paciente al que pertenece.
+- `cargado_at` (timestamptz).
 
-## Tipos de recurso disponibles y sus campos clave (dentro de `recurso`)
+Las tablas se crean solas cuando llega un archivo con ese tipo. Las más comunes:
 
-- **Patient** — un paciente. Campos: `gender`, `birthYear` (año de nacimiento,
-  ya anonimizado). El nombre y domicilio están protegidos (no disponibles).
-- **Encounter** — un ingreso / consulta / visita. Campos:
-  `class.code` (tipo: `EMER`=emergencia, `AMB`=ambulatorio, `IMP`=hospitalizado,
-  `WELLNESS`), `period.start` y `period.end` (timestamptz), `type[0].text`
-  (motivo de la visita), `subject.reference` (paciente).
-- **Condition** — un diagnóstico / enfermedad. Campos: `code.text` (nombre de la
-  enfermedad), `clinicalStatus`, `onsetDateTime`, `subject.reference`.
-- **Observation** — una medición (signos vitales, laboratorio). Campos:
-  `code.text`, `valueQuantity.value`, `valueQuantity.unit`, `effectiveDateTime`.
-- **Procedure** — un procedimiento realizado. Campo: `code.text`.
-- **Immunization** — una vacuna aplicada. Campos: `vaccineCode.text`,
-  `occurrenceDateTime`.
-- **MedicationRequest** — receta de medicamento. Campo:
-  `medicationCodeableConcept.text`.
-- **AllergyIntolerance** — una alergia. Campo: `code.text`.
+- **patient** — pacientes. En `recurso`: `gender`, `birthYear` (ya anonimizado).
+  El nombre, domicilio y teléfono NO están (se quitan al cargar, capa PII).
+- **encounter** — ingresos/consultas/visitas. `recurso->'class'->>'code'`
+  (`EMER`=emergencia, `AMB`=ambulatorio, `IMP`=hospitalizado, `WELLNESS`),
+  `recurso->'period'->>'start'` y `...->>'end'`, `recurso->'type'->0->>'text'`.
+- **condition** — diagnósticos/enfermedades. `recurso->'code'->>'text'` (nombre),
+  `recurso->>'onsetDateTime'`.
+- **observation** — mediciones (signos vitales, laboratorio).
+  `recurso->'code'->>'text'`, `recurso->'valueQuantity'->>'value'`,
+  `recurso->'valueQuantity'->>'unit'`.
+- **procedure** — procedimientos. `recurso->'code'->>'text'`.
+- **immunization** — vacunas. `recurso->'vaccineCode'->>'text'`,
+  `recurso->>'occurrenceDateTime'`.
+- **medicationrequest** — recetas. `recurso->'medicationCodeableConcept'->>'text'`.
+- **allergyintolerance** — alergias. `recurso->'code'->>'text'`.
+
+Puede haber más tablas (careplan, careteam, goal, organization, practitioner,
+claim, diagnosticreport, ...). Si dudas qué tablas existen, están todas listadas
+en el mensaje de acceso a datos.
 
 ## Notas importantes
 
-- Los datos son **históricos** (fechas desde ~1950 hasta 2019). Preguntas de
-  fechas relativas como "hoy" o "últimas 72 horas" muy probablemente no
-  devuelvan filas, porque no hay datos recientes. Para rangos, conviene usar
-  fechas absolutas o el máximo presente en los datos.
-- Un paciente puede tener muchos Encounters, Conditions, Observations, etc.
-- Para contar "pacientes" usa `tipo = 'Patient'`; para "ingresos" usa
-  `tipo = 'Encounter'`.
+- Un recurso se relaciona con su paciente por `paciente_id` (el mismo uuid está en
+  la tabla `patient.id` sin el prefijo, y en las demás en `paciente_id`). Para
+  unir: `JOIN patient p ON p.id = otra.paciente_id` — ojo: `patient.id` viene como
+  `Patient/<uuid>`, y `paciente_id` como `<uuid>`; compara con
+  `split_part(p.id,'/',2) = otra.paciente_id` si necesitas unir.
+- Los datos son **históricos** (fechas ~1950-2019). Preguntas con "hoy" o
+  "últimas 72h" probablemente no devuelvan filas.
+- Para "cuántos pacientes" usa `patient`; para "ingresos" usa `encounter`.

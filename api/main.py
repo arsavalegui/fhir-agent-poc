@@ -33,14 +33,22 @@ def home():
 
 @app.get("/api/estado")
 def estado():
+    """Cuenta filas sumando TODAS las tablas de tipos FHIR (una por tipo)."""
     conn = conexion()
     cur = conn.cursor()
-    cur.execute("SELECT tipo, count(*) FROM resources GROUP BY tipo ORDER BY 2 DESC")
-    tipos = {t: n for t, n in cur.fetchall()}
-    cur.execute("SELECT count(*) FROM resources")
-    total = cur.fetchone()[0]
+    cur.execute("""SELECT table_name FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name""")
+    tablas = [r[0] for r in cur.fetchall()]
+    tipos, total = {}, 0
+    for t in tablas:
+        try:
+            cur.execute(f'SELECT count(*) FROM "{t}"')
+            n = cur.fetchone()[0]
+            tipos[t] = n; total += n
+        except Exception:
+            conn.rollback()
     cur.close(); conn.close()
-    return {"total_recursos": total, "por_tipo": tipos}
+    return {"total_recursos": total, "por_tipo": tipos, "tablas": len(tablas)}
 
 
 @app.get("/api/tablas")

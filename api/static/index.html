@@ -149,6 +149,7 @@ const EJEMPLOS = [
   "¿Vacunas más aplicadas?",
 ];
 let TABLAS = [];  // {nombre, tipo, filas, permitida}
+const yaVistas = new Set();  // tablas ya conocidas; las nuevas se auto-activan
 
 async function cargarEstado() {
   const r = await fetch("/api/estado").then(r=>r.json());
@@ -157,9 +158,12 @@ async function cargarEstado() {
 }
 async function cargarTablas() {
   const r = await fetch("/api/tablas").then(r=>r.json());
-  // por defecto solo la vista anonimizada queda permitida (protege PII)
-  TABLAS = r.tablas.map(t => ({...t, permitida: t.nombre === "resources_anon"}));
-  document.getElementById("db-info").textContent = "fhir_db · " + TABLAS.length + " objetos";
+  // una tabla por tipo de recurso; por defecto TODAS activas (sin roles aún)
+  const previas = new Set(TABLAS.filter(t=>t.permitida).map(t=>t.nombre));
+  const primera = TABLAS.length === 0;
+  TABLAS = r.tablas.map(t => ({...t, permitida: primera ? true : (previas.has(t.nombre) || !yaVistas.has(t.nombre))}));
+  r.tablas.forEach(t => yaVistas.add(t.nombre));
+  document.getElementById("db-info").textContent = "fhir_db · " + TABLAS.length + " tablas";
   pintarTablas();
 }
 function pintarTablas() {
@@ -252,8 +256,9 @@ async function cargarConfig() {
 window.addEventListener("beforeunload", () => { document.getElementById("hilo").innerHTML=""; });
 
 pintarEjemplos(); cargarEstado(); cargarTablas(); cargarConfig();
-// refresca el conteo cada 8s para reflejar lo que el buzón vaya ingiriendo
-setInterval(cargarEstado, 8000);
+// refresca conteo y tablas cada 8s: las tablas nuevas que cree el buzón
+// aparecen y se auto-activan solas (preservando lo que el usuario haya tocado)
+setInterval(() => { cargarEstado(); cargarTablas(); }, 8000);
 </script>
 </body>
 </html>
