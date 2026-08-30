@@ -25,23 +25,29 @@ cliente solo cambia la configuración del agente**.
 ## Arquitectura
 
 ```
-Navegador ─┐
-           │  subir JSON / preguntar
-           ▼
-      API (FastAPI)  ──►  Agente text-to-SQL  ──►  Ollama local (qwen2.5-coder:3b)
-           │                                            (genera el SELECT)
-           ▼
-      PostgreSQL  ◄── vista resources_anon (capa PII) ── tabla resources (jsonb crudo)
+  carpeta entrada/ ──► watcher ──┐          Navegador ─┐
+   (dejas un .json)               │                     │ preguntar
+                                  ▼                     ▼
+                            PostgreSQL  ◄──  Agente text-to-SQL ──► Ollama local
+        vista resources_anon (PII) ─┘         (API FastAPI)         (qwen2.5-coder:3b)
+              └── tabla resources (jsonb crudo)   └── respuesta + la query SQL
 ```
 
 - **Postgres 16** con `jsonb` + índice GIN. Tabla `resources` (crudo) y vista
   `resources_anon` que enmascara identificadores del recurso `Patient`.
-- **API FastAPI** con UI: preguntar, subir JSON, y ver la configuración.
+- **Buzón de auto-ingesta** (patrón landing folder): dejas un `.json` en
+  `datos_fhir/entrada/` y el servicio `watcher` (watchdog, contenedor aparte) lo
+  carga solo a Postgres y lo mueve a `procesados/` (o `errores/`). La carga de
+  datos queda SEPARADA del agente.
+- **API FastAPI** con UI de chat: sidebar con la vista de la base y **selector de
+  acceso** (eliges a qué tablas puede acceder el agente; por defecto solo
+  `resources_anon`), instrucciones del agente, y un solo chat sin historial que se
+  borra al cerrar.
 - **LLM 100% local** con [Ollama](https://ollama.com) + modelo `qwen2.5-coder:3b`
   (corre en tu CPU, gratis, sin registro, sin límites). Solo genera la query;
   nunca toca los datos. Se puede apuntar a otro backend con `LLM_URL`/`LLM_MODELO`.
-- **Seguridad**: el agente solo puede generar `SELECT` (validado); timeout de 8 s;
-  la transacción siempre se revierte.
+- **Seguridad**: el agente solo puede generar `SELECT` (validado); solo consulta las
+  tablas autorizadas en el sidebar; timeout de 8 s; la transacción siempre se revierte.
 
 ## Capa PII (privacidad)
 
@@ -58,10 +64,14 @@ Navegador ─┐
 ```bash
 cp .env.example .env   # pon una contraseña de Postgres
 docker compose up -d --build
-# cargar los bundles FHIR de ejemplo:
+# cargar los bundles FHIR de ejemplo (o deja archivos en datos_fhir/entrada/):
 docker exec fhir-agent-poc-api-1 python ingesta.py
 # abrir http://localhost:8010
 ```
+
+**Subir más datos** (dos formas): dejar un `.json` FHIR en `datos_fhir/entrada/`
+y el watcher lo ingiere solo; o correr `python ingesta.py` para recargar toda la
+carpeta `bundles/`.
 
 Requiere **Ollama** corriendo en el host con el modelo descargado:
 ```bash
@@ -95,11 +105,16 @@ fhir-agent-poc/
 │       └── reglas.md                # 2b · reglas del agente
 ├── sql/schema.sql                   # tabla jsonb + vista PII
 ├── api/
-│   ├── main.py                      # FastAPI
-│   ├── agente.py                    # text-to-SQL
+│   ├── main.py                      # FastAPI (chat, subir, tablas)
+│   ├── agente.py                    # text-to-SQL + control de acceso
 │   ├── ingesta.py                   # bundle FHIR → filas
-│   └── static/index.html            # UI
-└── datos_fhir/bundles/              # 8 pacientes Synthea
+│   ├── watcher.py                   # auto-ingesta del buzón
+│   └── static/index.html            # UI de chat + sidebar
+└── datos_fhir/
+    ├── bundles/                     # 8 pacientes Synthea
+    ├── entrada/                     # buzón: deja aquí .json nuevos
+    ├── procesados/                  # ya ingeridos
+    └── errores/                     # los que fallaron
 ```
 
 ## Nota sobre el LLM
