@@ -10,10 +10,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PASSWORD_LECTURA: ${POSTGRES_PASSWORD_LECTURA:?define POSTGRES_PASSWORD_LECTURA en .env (rol de solo lectura)}
       TZ: America/Mexico_City
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./sql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./sql/init_roles.sh:/docker-entrypoint-initdb.d/02_roles.sh:ro
+      - ./sql/roles.sql:/sql/roles.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -29,6 +32,7 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL_LECTURA: postgresql://fhir_lector:${POSTGRES_PASSWORD_LECTURA}@postgres:5432/${POSTGRES_DB}
       CONFIG_DIR: /config
       # LLM local: Ollama corre en el HOST (servicio de usuario, puerto 11434).
       LLM_URL: http://host.docker.internal:11434/v1

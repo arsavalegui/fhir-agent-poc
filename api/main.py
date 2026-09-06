@@ -1,5 +1,6 @@
 """API del POC: subir bundles FHIR, preguntar en lenguaje natural, ver la query."""
 import json
+import logging
 import os
 import tempfile
 
@@ -13,11 +14,24 @@ import agente
 import ingesta
 
 DSN = os.environ["DATABASE_URL"]
+# Rol fhir_lector (solo SELECT, ver sql/roles.sql): lo usan los endpoints que
+# nunca escriben. Si no está configurado, cae a DSN (rol con permiso de
+# escritura) para no romper instalaciones viejas, pero avisa en el log.
+DSN_LECTURA = os.environ.get("DATABASE_URL_LECTURA")
+if not DSN_LECTURA:
+    logging.warning("DATABASE_URL_LECTURA no configurada; usando DATABASE_URL "
+                     "(rol con permiso de escritura) para los endpoints de solo lectura")
+    DSN_LECTURA = DSN
+
 app = FastAPI(title="Agente de datos FHIR (POC)")
 
 
 def conexion():
     return psycopg2.connect(DSN)
+
+
+def conexion_lectura():
+    return psycopg2.connect(DSN_LECTURA)
 
 
 class Pregunta(BaseModel):
@@ -34,7 +48,7 @@ def home():
 @app.get("/api/estado")
 def estado():
     """Cuenta filas sumando TODAS las tablas de tipos FHIR (una por tipo)."""
-    conn = conexion()
+    conn = conexion_lectura()
     cur = conn.cursor()
     cur.execute("""SELECT table_name FROM information_schema.tables
         WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name""")
@@ -55,7 +69,7 @@ def estado():
 def tablas():
     """Lista tablas y vistas del esquema public, con conteo de filas, para que
     el usuario elija a cuáles puede acceder el agente."""
-    conn = conexion()
+    conn = conexion_lectura()
     cur = conn.cursor()
     cur.execute("""
         SELECT table_name, table_type FROM information_schema.tables
@@ -106,7 +120,7 @@ async def subir(archivo: UploadFile = File(...)):
 
 @app.post("/api/preguntar")
 def preguntar(p: Pregunta):
-    conn = conexion()
+    conn = conexion_lectura()
     try:
         return agente.preguntar(conn, p.texto, p.fuente, p.tablas_permitidas)
     finally:
