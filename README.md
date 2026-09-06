@@ -114,6 +114,43 @@ ingresos, diagnósticos, observaciones, procedimientos, vacunas, recetas.
 - ¿Cuántos pacientes hay por género?
 - ¿Cuáles son las vacunas más aplicadas?
 
+## Evaluación (golden set)
+
+`api/evals/golden.json` tiene 15 preguntas con su **SQL de verdad escrita a
+mano y verificada contra la base**. `api/evaluar.py` le hace cada pregunta al
+agente y compara **los resultados**, no los SQL: dos consultas distintas que
+devuelven lo mismo cuentan como correctas.
+
+```bash
+docker compose exec api python evaluar.py                      # las 15
+docker compose exec api python evaluar.py --solo g13_tres_colecciones
+docker compose exec api python evaluar.py --modelo qwen2.5-coder:7b
+docker compose exec api python evaluar.py --json /app/r.json   # sacar con docker cp
+docker compose exec api python evaluar.py --autocheck          # prueba el comparador, sin LLM
+```
+
+Comparación: multiconjunto de tuplas normalizadas (números como float, texto
+sin espacios de más), así que el **orden de las filas no importa** y `'2001'`
+de un `->>` cuenta igual que `2001` casteado a `int`. Sí importan cuántas
+columnas devuelves y en qué orden, por eso las preguntas del golden set piden
+explícitamente qué columnas quieren.
+
+Resultado con `qwen2.5-coder-fhir:3b` local (CPU): **11/15**, ~20 s por
+pregunta. Fácil 5/5, media 4/7, difícil 2/3.
+
+De los 4 fallos, solo 2 son errores del modelo (`max()` sin `::numeric`; leer
+`code` de la tabla equivocada). Los otros dos NO lo son:
+
+- `g11` tradujo el literal a `ILIKE '%obesidad%'` y los datos están en inglés
+  (`obesity`) — hueco de `descripcion.md`, que no dice que los valores
+  clínicos vienen en inglés.
+- `g13` **generó la consulta correcta** (un CTE agregado por colección, que
+  devuelve exactamente el resultado esperado) y `validar()` la rechazó:
+  cuenta los nombres de los CTE como si fueran tablas no autorizadas. El
+  helper `_nombres_cte()` ya existe pero solo lo usa el chequeo de JOIN
+  cartesiano. Con `usadas = tablas_en_sql(sql) - _nombres_cte(sql)` en
+  `validar()`, el pass rate del 3B sube a 12/15.
+
 ## Estructura del repo
 
 ```
@@ -132,6 +169,8 @@ fhir-agent-poc/
 │   ├── agente.py                    # text-to-SQL + control de acceso
 │   ├── ingesta.py                   # FHIR → tabla por tipo (auto-crea)
 │   ├── watcher.py                   # auto-ingesta del buzón
+│   ├── evaluar.py                   # evalúa el agente contra el golden set
+│   ├── evals/golden.json            # 15 preguntas + SQL de verdad verificada
 │   └── static/index.html            # UI de chat + sidebar
 └── datos_fhir/
     ├── bundles/                     # 8 pacientes Synthea

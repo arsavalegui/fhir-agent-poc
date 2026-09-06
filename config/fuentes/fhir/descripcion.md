@@ -47,3 +47,11 @@ en el mensaje de acceso a datos.
 - Los datos son **históricos** (fechas ~1950-2019). Preguntas con "hoy" o
   "últimas 72h" probablemente no devuelvan filas.
 - Para "cuántos pacientes" usa `patient`; para "ingresos" usa `encounter`.
+- **Los valores de texto de los datos están en INGLÉS**, aunque la pregunta
+  venga en español: descripciones de condiciones, medicamentos y vacunas,
+  `gender` (`male`/`female`, nunca `M`/`F`) y clases de encuentro (`EMER`,
+  `AMB`). Al filtrar, **traduce el literal al inglés**:
+  - "obesidad" → `ILIKE '%obesity%'`
+  - "mujeres" → `= 'female'`
+  - "bronquitis" → `ILIKE '%bronchitis%'`
+  - "emergencia" → `= 'EMER'`

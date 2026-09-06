@@ -1,0 +1,110 @@
+{
+  "descripcion": "Golden set del agente text-to-SQL sobre FHIR (datos Synthea, 8 pacientes). Cada `sql_verdad` se escribió a mano y se ejecutó contra la base real; el resultado no vacío es la verdad contra la que se compara la SQL del LLM. Las preguntas están redactadas para fijar QUÉ columnas y en QUÉ orden se esperan, porque el evaluador compara tuplas.",
+  "tablas_permitidas": [
+    "patient",
+    "encounter",
+    "condition",
+    "observation",
+    "procedure",
+    "immunization",
+    "medicationrequest",
+    "allergyintolerance"
+  ],
+  "casos": [
+    {
+      "id": "g01_total_pacientes",
+      "dificultad": "facil",
+      "pregunta": "¿Cuántos pacientes hay en total?",
+      "sql_verdad": "SELECT count(*) AS pacientes FROM patient;"
+    },
+    {
+      "id": "g02_mujeres",
+      "dificultad": "facil",
+      "pregunta": "¿Cuántas pacientes mujeres hay?",
+      "sql_verdad": "SELECT count(*) AS mujeres FROM patient WHERE recurso->>'gender' = 'female';"
+    },
+    {
+      "id": "g03_ambulatorios",
+      "dificultad": "facil",
+      "pregunta": "¿Cuántos encuentros ambulatorios hubo?",
+      "sql_verdad": "SELECT count(*) AS ambulatorios FROM encounter WHERE recurso->'class'->>'code' = 'AMB';"
+    },
+    {
+      "id": "g04_nacidos_despues_1999",
+      "dificultad": "facil",
+      "pregunta": "¿Cuántos pacientes nacieron después de 1999?",
+      "sql_verdad": "SELECT count(*) AS pacientes FROM patient WHERE (recurso->>'birthYear')::int > 1999;",
+      "nota": "Corte en 1999 a propósito: hay dos pacientes nacidos ese año, así que > da 3 y >= da 5. Con corte en 2000 los dos operadores empataban y el caso no probaba nada."
+    },
+    {
+      "id": "g05_vacunas_2019",
+      "dificultad": "facil",
+      "pregunta": "¿Cuántas vacunas se aplicaron en el año 2019?",
+      "sql_verdad": "SELECT count(*) AS dosis FROM immunization WHERE (recurso->>'occurrenceDateTime')::date >= '2019-01-01' AND (recurso->>'occurrenceDateTime')::date < '2020-01-01';"
+    },
+    {
+      "id": "g06_peso_maximo",
+      "dificultad": "media",
+      "pregunta": "¿Cuál es el peso corporal (Body Weight) más alto registrado en las observaciones?",
+      "sql_verdad": "SELECT max((recurso->'valueQuantity'->>'value')::numeric) AS peso_max FROM observation WHERE recurso->'code'->>'text' = 'Body Weight';",
+      "nota": "Discrimina el cast: sin ::numeric, max() compara TEXTO y devuelve '99.x' en vez de 101.13. La regla del cast está escrita en agente_general.md."
+    },
+    {
+      "id": "g07_encuentros_por_clase",
+      "dificultad": "media",
+      "pregunta": "¿Cuántos encuentros hay de cada clase? Dame el código de la clase y el total.",
+      "sql_verdad": "SELECT recurso->'class'->>'code' AS clase, count(*) AS total FROM encounter GROUP BY 1 ORDER BY 2 DESC;"
+    },
+    {
+      "id": "g08_top3_diagnosticos",
+      "dificultad": "media",
+      "pregunta": "¿Cuáles son los 3 diagnósticos más frecuentes? Dame el nombre del diagnóstico y cuántas veces aparece.",
+      "sql_verdad": "SELECT recurso->'code'->>'text' AS diagnostico, count(*) AS total FROM condition GROUP BY 1 ORDER BY 2 DESC LIMIT 3;"
+    },
+    {
+      "id": "g09_top3_vacunas",
+      "dificultad": "media",
+      "pregunta": "¿Cuáles son las 3 vacunas con más dosis aplicadas? Dame el nombre de la vacuna y el número de dosis.",
+      "sql_verdad": "SELECT recurso->'vaccineCode'->>'text' AS vacuna, count(*) AS dosis FROM immunization GROUP BY 1 ORDER BY 2 DESC LIMIT 3;"
+    },
+    {
+      "id": "g10_diagnosticos_mujeres",
+      "dificultad": "media",
+      "pregunta": "¿Qué diagnósticos distintos tienen las pacientes de género femenino? Dame solo el nombre del diagnóstico, sin repetir.",
+      "sql_verdad": "SELECT DISTINCT c.recurso->'code'->>'text' AS diagnostico FROM patient p JOIN condition c ON c.paciente_id = p.paciente_id WHERE p.recurso->>'gender' = 'female';"
+    },
+    {
+      "id": "g11_medicamentos_obesidad",
+      "dificultad": "media",
+      "pregunta": "¿Qué medicamentos se les han recetado alguna vez, sin importar el estado de la receta, a los pacientes que tienen registrado un diagnóstico de obesidad? Dame solo el nombre del medicamento, sin repetir.",
+      "sql_verdad": "SELECT DISTINCT m.recurso->'medicationCodeableConcept'->>'text' AS medicamento FROM condition c JOIN medicationrequest m ON m.paciente_id = c.paciente_id WHERE c.recurso->'code'->>'text' ILIKE '%obesity%';",
+      "nota": "Los valores clínicos están en INGLÉS ('obesity') y la pregunta en español; la nota de idioma vive en descripcion.md. La pregunta dice 'alguna vez' y 'sin importar el estado' para que filtrar por status='active' (3 filas) no se confunda con la respuesta correcta (9)."
+    },
+    {
+      "id": "g12_encuentros_por_paciente",
+      "dificultad": "media",
+      "pregunta": "Para cada paciente, dame su identificador de paciente, su género y cuántos encuentros tiene.",
+      "sql_verdad": "SELECT p.paciente_id, p.recurso->>'gender' AS genero, (SELECT count(*) FROM encounter e WHERE e.paciente_id = p.paciente_id) AS encuentros FROM patient p ORDER BY 3 DESC;"
+    },
+    {
+      "id": "g13_tres_colecciones",
+      "dificultad": "dificil",
+      "pregunta": "Para cada paciente, dame su identificador de paciente, cuántos diagnósticos tiene, cuántas recetas tiene y cuántas vacunas tiene.",
+      "sql_verdad": "SELECT p.paciente_id, (SELECT count(*) FROM condition c WHERE c.paciente_id = p.paciente_id) AS diagnosticos, (SELECT count(*) FROM medicationrequest m WHERE m.paciente_id = p.paciente_id) AS recetas, (SELECT count(*) FROM immunization i WHERE i.paciente_id = p.paciente_id) AS vacunas FROM patient p ORDER BY 1;",
+      "nota": "El caso duro: 3 colecciones 1-a-muchos. Un JOIN encadenado infla los conteos; la respuesta correcta necesita subconsultas correlacionadas o un CTE por colección."
+    },
+    {
+      "id": "g14_exists_alergia",
+      "dificultad": "dificil",
+      "pregunta": "Para cada paciente que tiene al menos una alergia registrada, dame su identificador de paciente, su género y su año de nacimiento.",
+      "sql_verdad": "SELECT p.paciente_id, p.recurso->>'gender' AS genero, p.recurso->>'birthYear' AS anio_nacimiento FROM patient p WHERE EXISTS (SELECT 1 FROM allergyintolerance a WHERE a.paciente_id = p.paciente_id);"
+    },
+    {
+      "id": "g15_exists_sinusitis",
+      "dificultad": "dificil",
+      "pregunta": "¿Cuántos pacientes tienen registrado al menos un diagnóstico de sinusitis alguna vez, sin importar si sigue activo?",
+      "sql_verdad": "SELECT count(*) AS pacientes FROM patient p WHERE EXISTS (SELECT 1 FROM condition c WHERE c.paciente_id = p.paciente_id AND c.recurso->'code'->>'text' ILIKE '%sinusitis%');",
+      "nota": "'alguna vez' es explícito: filtrar por clinicalStatus activo daría 1 en vez de 5. Un JOIN sin DISTINCT daría 12 (filas de condition), así que discrimina el patrón EXISTS."
+    }
+  ]
+}
