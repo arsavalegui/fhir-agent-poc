@@ -37,6 +37,12 @@ services:
       # LLM local: Ollama corre en el HOST (servicio de usuario, puerto 11434).
       LLM_URL: http://host.docker.internal:11434/v1
       LLM_MODELO: ${LLM_MODELO:-qwen2.5-coder-fhir:3b}
+      LLM_API_KEY: ${LLM_API_KEY:-local}
+      # Respaldo opcional (p. ej. Groq): solo lo usa el reintento de auto-corrección.
+      LLM_URL_RESPALDO: ${LLM_URL_RESPALDO:-}
+      LLM_MODELO_RESPALDO: ${LLM_MODELO_RESPALDO:-}
+      LLM_API_KEY_RESPALDO: ${LLM_API_KEY_RESPALDO:-local}
+      PERMITIR_LLM_EXTERNO: ${PERMITIR_LLM_EXTERNO:-0}
       TZ: America/Mexico_City
     volumes:
       - ./config:/config:ro
