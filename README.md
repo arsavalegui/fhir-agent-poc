@@ -62,15 +62,31 @@ cliente solo cambia la configuración del agente**.
 - **LLM 100% local** con [Ollama](https://ollama.com) + modelo `qwen2.5-coder:3b`
   (corre en tu CPU, gratis, sin registro, sin límites). Solo genera la query;
   nunca toca los datos. Se puede apuntar a otro backend con `LLM_URL`/`LLM_MODELO`.
-- **Seguridad**: el agente solo puede generar `SELECT` (validado); solo consulta las
-  tablas autorizadas en el sidebar; timeout de 8 s; la transacción siempre se revierte.
+- **Seguridad**: el agente solo puede generar `SELECT` (validado, ver sección abajo);
+  solo consulta las tablas autorizadas en el sidebar; timeout de 8 s; la transacción
+  siempre se revierte.
+- **Rol de Postgres de solo lectura**: `/api/preguntar` y los GET (`/api/estado`,
+  `/api/tablas`) usan el rol `fhir_lector` (`sql/roles.sql`), que solo tiene
+  `GRANT SELECT`; la ingesta y el watcher siguen con el rol `fhir` normal, que sí
+  escribe. La barrera real son los GRANTs (probado: el rol no puede
+  INSERT/CREATE/DROP ni con `default_transaction_read_only` apagado); ese flag es
+  un cinturón extra, no la protección principal. Como las tablas nacen dinámicas en
+  la ingesta, `sql/roles.sql` usa `ALTER DEFAULT PRIVILEGES` para que las tablas
+  nuevas ya salgan con `SELECT` otorgado a `fhir_lector` sin correr nada a mano.
+  `POSTGRES_PASSWORD_LECTURA` es obligatoria en `.env`: `docker-compose.yml` falla
+  rápido al arrancar si falta. `sql/init_roles.sh` crea el rol solo, pero nada más
+  en un volumen de Postgres **nuevo** (corre como script de
+  `/docker-entrypoint-initdb.d`); sobre un volumen que ya existía hay que correr
+  `sql/roles.sql` a mano una vez: `psql -U fhir -d fhir_db -v pw='la_contraseña' -f sql/roles.sql`.
 
 ## Capa PII (privacidad)
 
 - El recurso `Patient` se **anonimiza al entrar** (la ingesta quita `name`,
   `telecom`, `address`, `identifier`, `contact`, y deja solo el año de nacimiento).
   La tabla `patient` nunca guarda identificadores directos.
-- Los demás recursos referencian al paciente por uuid (seudónimo), no por nombre.
+- Los recursos clínicos (encuentros, diagnósticos, observaciones...) referencian
+  al paciente por uuid (seudónimo), no por nombre. **Ojo**: esto no cubre a todo
+  el bundle — ver el pendiente de `practitioner`/`organization` más abajo.
 - **Producción**: para detectar PII en texto libre (notas clínicas), el siguiente
   paso es integrar [Microsoft Presidio](https://github.com/microsoft/presidio)
   (open source, MIT).
@@ -78,7 +94,7 @@ cliente solo cambia la configuración del agente**.
 ## Cómo correr
 
 ```bash
-cp .env.example .env   # pon una contraseña de Postgres
+cp .env.example .env   # pon POSTGRES_PASSWORD y POSTGRES_PASSWORD_LECTURA (las dos son obligatorias)
 docker compose up -d --build
 # cargar los bundles FHIR de ejemplo (o deja archivos en datos_fhir/entrada/):
 docker exec fhir-agent-poc-api-1 python ingesta.py
@@ -135,21 +151,48 @@ de un `->>` cuenta igual que `2001` casteado a `int`. Sí importan cuántas
 columnas devuelves y en qué orden, por eso las preguntas del golden set piden
 explícitamente qué columnas quieren.
 
-Resultado con `qwen2.5-coder-fhir:3b` local (CPU): **11/15**, ~20 s por
-pregunta. Fácil 5/5, media 4/7, difícil 2/3.
+Resultado con `qwen2.5-coder-fhir:3b` local (CPU): **13/15 (87%)**, latencia
+total de la corrida 228 s, 2 reintentos de auto-corrección. Por dificultad:
+fácil 5/5, media 6/7, difícil 2/3.
 
-De los 4 fallos, solo 2 son errores del modelo (`max()` sin `::numeric`; leer
-`code` de la tabla equivocada). Los otros dos NO lo son:
+Los 2 fallos restantes son estables y del modelo, no del validador ni de la
+config del agente:
 
-- `g11` tradujo el literal a `ILIKE '%obesidad%'` y los datos están en inglés
-  (`obesity`) — hueco de `descripcion.md`, que no dice que los valores
-  clínicos vienen en inglés.
-- `g13` **generó la consulta correcta** (un CTE agregado por colección, que
-  devuelve exactamente el resultado esperado) y `validar()` la rechazó:
-  cuenta los nombres de los CTE como si fueran tablas no autorizadas. El
-  helper `_nombres_cte()` ya existe pero solo lo usa el chequeo de JOIN
-  cartesiano. Con `usadas = tablas_en_sql(sql) - _nombres_cte(sql)` en
-  `validar()`, el pass rate del 3B sube a 12/15.
+- `max()` sobre un valor de texto sin castear a `::numeric` (compara texto en
+  vez de número).
+- Contar filas de `condition` en vez de pacientes distintos, en una pregunta
+  que pide cuántos pacientes tienen cierto diagnóstico.
+
+Qué sigue si hace falta subir el pass rate: un few-shot puntual en
+`reglas.md` para cada patrón, o pasar a un modelo más grande (ver "Nota sobre
+el LLM").
+
+## Seguridad de las consultas (`validar()`)
+
+Antes de ejecutar cualquier SQL que arma el LLM, `api/agente.py` lo pasa por
+`validar()`. Rechaza:
+
+- Más de una sentencia (cualquier `;` que no sea el final cosmético).
+- Cualquier cosa que no sea `SELECT` o `WITH ... SELECT`.
+- Palabras clave de escritura o de sistema: `INSERT/UPDATE/DELETE/DROP/ALTER/
+  CREATE/TRUNCATE/GRANT/REVOKE/COPY/INTO`, `current_setting`, `pg_read_file`,
+  `pg_sleep`, `dblink`, etc.
+- Tablas no autorizadas, calculado por alcance: cada cuerpo de CTE se valida
+  restando solo los CTE declarados antes de él (un CTE con nombre de tabla
+  real ya no la esconde, ni al revés).
+- Coma-join contado como tabla en cada nivel de paréntesis, y JOIN cartesiano
+  (2+ colecciones distintas de `patient` unidas por JOIN/FROM directo junto
+  con un agregado), tanto en el nivel superior como dentro de cualquier CTE.
+
+Acepta sin falsos positivos: `LATERAL jsonb_array_elements`, el `FROM`
+interno de `EXTRACT`/`SUBSTRING`/`TRIM`, y CTEs con lista de columnas o
+`MATERIALIZED`.
+
+Corte conocido: los comentarios (`--` y `/* */`) se quitan antes de validar,
+y se ejecuta ese mismo texto sin comentarios. Un `--` dentro de un literal de
+cadena también se borra, así que no solo falla la validación: cambia en
+silencio qué SQL se ejecuta. Haría falta un parser SQL completo para
+diferenciar un `--` real de uno dentro de una cadena.
 
 ## Estructura del repo
 
@@ -163,7 +206,9 @@ fhir-agent-poc/
 │       └── reglas.md                # 2b · reglas del agente
 ├── sql/
 │   ├── schema.sql                    # solo referencia: las tablas reales las crea api/ingesta.py, una por resourceType
-│   └── migrar_quitar_id.sql          # migración: quita columna id → índice único
+│   ├── migrar_quitar_id.sql          # migración: quita columna id → índice único
+│   ├── roles.sql                     # rol fhir_lector de solo lectura (GRANT SELECT + default privileges)
+│   └── init_roles.sh                 # corre roles.sql en un volumen de Postgres nuevo
 ├── api/
 │   ├── main.py                      # FastAPI (chat, subir, tablas)
 │   ├── agente.py                    # text-to-SQL + control de acceso
@@ -171,6 +216,7 @@ fhir-agent-poc/
 │   ├── watcher.py                   # auto-ingesta del buzón
 │   ├── evaluar.py                   # evalúa el agente contra el golden set
 │   ├── evals/golden.json            # 15 preguntas + SQL de verdad verificada
+│   ├── test_agente.py               # suite con dobles del LLM y de la conexión
 │   └── static/index.html            # UI de chat + sidebar
 └── datos_fhir/
     ├── bundles/                     # 8 pacientes Synthea
@@ -201,3 +247,46 @@ para sostener esa composición. Si eso importa para producción, las opciones
 son: un modelo local más grande (7B+, con más RAM/CPU) o un modelo de paga vía
 API, apuntando `LLM_URL`/`LLM_MODELO` sin cambiar el resto de la arquitectura.
 No escala agregar un few-shot por cada combinación posible de tablas.
+
+**Por qué no un 7B local en esta máquina**: sin GPU, un modelo de 7B corriendo
+en CPU con un prompt de ~5k tokens (catálogo de campos + reglas) sube la
+latencia a un punto donde deja de ser práctico para un chat. En este hardware
+el 3B es el techo razonable; para más calidad sin comprar máquina, la opción
+es un respaldo externo (ver abajo), no un modelo local más grande.
+
+**Escalada al respaldo en el reintento**: si el primer intento falla,
+`llamar_llm` reintenta con más temperatura; si además `LLM_URL_RESPALDO` y
+`LLM_MODELO_RESPALDO` están puestos en `.env` (y `LLM_API_KEY_RESPALDO` si el
+proveedor la pide), ese reintento se manda al respaldo en vez de repetirle la
+pregunta al modelo local, que ya demostró que no le salió. Ejemplo con Groq:
+```
+LLM_URL_RESPALDO=https://api.groq.com/openai/v1
+LLM_MODELO_RESPALDO=llama-3.3-70b-versatile
+LLM_API_KEY_RESPALDO=<tu key>
+```
+
+**Qué sale de la máquina** si usas un respaldo externo: la pregunta del
+usuario, el catálogo de campos (nombres de campo, no valores) y, en el
+reintento, el SQL que falló más el mensaje de error de Postgres. Nunca salen
+filas de datos: el LLM solo genera SQL, nunca ve resultados de la base.
+`verificar_llm_externo()` bloquea el arranque si `LLM_URL` o
+`LLM_URL_RESPALDO` apuntan fuera de esta máquina, salvo que pongas
+`PERMITIR_LLM_EXTERNO=1` en `.env` a propósito.
+
+## Pendientes
+
+- **La capa PII no cubre todo el bundle**: solo se anonimiza `Patient` al
+  ingerir. Verificado contra los bundles de `datos_fhir/bundles/`:
+  `practitioner` y `organization` sí traen `name`, `telecom` y `address` sin
+  enmascarar. (`explanationofbenefit` se revisó también y, en los datos
+  actuales, no trae esos campos directos — solo referencias por uuid —, así
+  que no aplica el mismo problema.) Antes de cargar datos reales habría que
+  extender `anonimizar()` en `api/ingesta.py` a `practitioner` y
+  `organization`.
+- **Recursos sin `id` se duplican al recargar**: el `ON CONFLICT` de la
+  ingesta depende de `recurso->>'id'`; un recurso sin ese campo no choca con
+  nada y cada recarga de la misma carpeta lo vuelve a insertar.
+- **`validar()` rechaza `ILIKE '%into%'` dentro de un literal**: la palabra
+  `into` está prohibida sin distinguir si aparece dentro de una cadena de
+  texto o como palabra clave SQL real, así que una pregunta que necesite
+  filtrar por un valor que contenga "into" se rechazaría de forma incorrecta.
