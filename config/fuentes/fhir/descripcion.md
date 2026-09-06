@@ -8,8 +8,8 @@ generados sintéticamente con Synthea (pacientes ficticios).
 Cada tipo de recurso FHIR vive en su propia tabla, nombrada con el tipo en
 minúsculas. Todas tienen la misma forma:
 
-- `id` (text): identificador único del recurso.
-- `recurso` (jsonb): el recurso FHIR crudo completo.
+- `recurso` (jsonb): el recurso FHIR crudo completo. El identificador único
+  del recurso NO es una columna aparte: está dentro, en `recurso->>'id'`.
 - `paciente_id` (text): uuid del paciente al que pertenece.
 - `cargado_at` (timestamptz).
 
@@ -37,11 +37,13 @@ en el mensaje de acceso a datos.
 
 ## Notas importantes
 
-- Un recurso se relaciona con su paciente por `paciente_id` (el mismo uuid está en
-  la tabla `patient.id` sin el prefijo, y en las demás en `paciente_id`). Para
-  unir: `JOIN patient p ON p.id = otra.paciente_id` — ojo: `patient.id` viene como
-  `Patient/<uuid>`, y `paciente_id` como `<uuid>`; compara con
-  `split_part(p.id,'/',2) = otra.paciente_id` si necesitas unir.
+- TODAS las tablas (incluida `patient`) tienen la columna `paciente_id` con el
+  mismo uuid sin prefijo. Para unir tablas usa SIEMPRE:
+  `JOIN patient p ON p.paciente_id = otra.paciente_id` (y entre dos recursos:
+  `a.paciente_id = b.paciente_id`). NUNCA unas por `recurso->>'id'` (es el id
+  interno de cada recurso, no el del paciente, y no hay columna `id`).
+- Los campos clínicos viven dentro del jsonb `recurso`: escribe
+  `p.recurso->>'gender'`, nunca `p.gender`.
 - Los datos son **históricos** (fechas ~1950-2019). Preguntas con "hoy" o
   "últimas 72h" probablemente no devuelvan filas.
 - Para "cuántos pacientes" usa `patient`; para "ingresos" usa `encounter`.

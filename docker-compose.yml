@@ -32,7 +32,7 @@ services:
       CONFIG_DIR: /config
       # LLM local: Ollama corre en el HOST (servicio de usuario, puerto 11434).
       LLM_URL: http://host.docker.internal:11434/v1
-      LLM_MODELO: ${LLM_MODELO:-qwen2.5-coder:3b}
+      LLM_MODELO: ${LLM_MODELO:-qwen2.5-coder-fhir:3b}
       TZ: America/Mexico_City
     volumes:
       - ./config:/config:ro

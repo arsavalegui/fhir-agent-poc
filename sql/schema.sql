@@ -3,16 +3,20 @@
 -- solas la primera vez que llega un recurso de ese tipo, con esta forma:
 --
 --   CREATE TABLE <tipo> (
---     id          TEXT PRIMARY KEY,   -- "<ResourceType>/<id>"
 --     recurso     JSONB NOT NULL,     -- el recurso FHIR crudo (Patient anonimizado)
 --     paciente_id TEXT,               -- uuid del paciente
 --     cargado_at  TIMESTAMPTZ DEFAULT now()
 --   );
+--   + índice ÚNICO sobre (recurso->>'id') (hace de PK para el ON CONFLICT;
+--     el identificador del recurso no es una columna, vive dentro del jsonb),
 --   + índice GIN sobre recurso, + índice sobre paciente_id.
 --
 -- El tipo se detecta por el campo `resourceType` DENTRO del JSON, nunca por el
 -- nombre del archivo. Un archivo puede ser un Bundle (muchos recursos) o un
 -- recurso suelto; ambos se reparten a la tabla que corresponde.
+--
+-- Migración una sola vez para tablas creadas antes de este cambio (quita la
+-- columna id vieja y crea el índice único): sql/migrar_quitar_id.sql
 --
 -- No hay nada que ejecutar en el arranque; este archivo documenta el modelo.
 SELECT 1;

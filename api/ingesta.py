@@ -48,14 +48,18 @@ def anonimizar(recurso):
 
 
 def asegurar_tabla(cur, tabla):
-    """Crea la tabla del tipo si no existe (id, recurso jsonb, paciente_id)."""
+    """Crea la tabla del tipo si no existe (recurso jsonb, paciente_id).
+    El identificador del recurso no es una columna: vive dentro del jsonb
+    (recurso->>'id') y un índice único sobre esa expresión hace de PK para
+    el ON CONFLICT (idempotencia de la ingesta)."""
     cur.execute(f'''
         CREATE TABLE IF NOT EXISTS "{tabla}" (
-            id          TEXT PRIMARY KEY,
             recurso     JSONB NOT NULL,
             paciente_id TEXT,
             cargado_at  TIMESTAMPTZ NOT NULL DEFAULT now()
         )''')
+    cur.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS "{tabla}_recurso_id_uniq" '
+                f'''ON "{tabla}" ((recurso->>'id'))''')
     cur.execute(f'CREATE INDEX IF NOT EXISTS "{tabla}_gin" ON "{tabla}" USING gin (recurso)')
     cur.execute(f'CREATE INDEX IF NOT EXISTS "{tabla}_pac" ON "{tabla}" (paciente_id)')
 
@@ -78,15 +82,14 @@ def cargar_bundle(cur, ruta):
         if not rt:
             continue
         tabla = nombre_tabla(rt)
-        rid = f"{rt}/{r.get('id', '')}"
         por_tabla.setdefault(tabla, []).append(
-            (rid, json.dumps(anonimizar(r)), ref_paciente(r)))
+            (json.dumps(anonimizar(r)), ref_paciente(r)))
     total = 0
     for tabla, filas in por_tabla.items():
         asegurar_tabla(cur, tabla)
         execute_values(cur,
-            f'INSERT INTO "{tabla}" (id, recurso, paciente_id) VALUES %s '
-            f'ON CONFLICT (id) DO NOTHING', filas)
+            f'INSERT INTO "{tabla}" (recurso, paciente_id) VALUES %s '
+            f'''ON CONFLICT ((recurso->>'id')) DO NOTHING''', filas)
         total += len(filas)
     return total
 
